@@ -74,6 +74,13 @@ class Uploader {
         $errorCode = self::ERROR_NO_ERROR;
 
 
+    public function __construct()
+    {
+        // fix http://stackoverflow.com/questions/4451664/make-php-pathinfo-return-the-correct-filename-if-the-filename-is-utf-8
+        setlocale(LC_ALL,'en_US.UTF-8');
+    }
+
+
     /**
      * @return int
      */
