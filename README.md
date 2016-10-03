@@ -3,20 +3,14 @@ Very small(single class) and comfortable file uploader
 
 # Installation
 
-[Composer](http://getcomposer.org/):
+Install composer in your project:
+```
+curl -s https://getcomposer.org/installer | php
+```
 
-```json
-{
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "https://github.com/azurre/php-simple-file-uploader"
-    }
-  ],
-  "require": {
-    "azurre/php-simple-file-uploader": "dev-master"
-  }
-}
+Require the package with composer:
+```
+composer require azurre/php-simple-file-uploader
 ```
 
 # Usage
