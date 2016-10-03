@@ -196,7 +196,7 @@ class Uploader {
         foreach ($this->validators as $validator) {
             switch ($validator['type']) {
                 case self::VALIDATOR_MIME:
-                    $this->validateMimetype($file['type'], $validator['data']);
+                    $this->validateMimetype($file['mime'], $validator['data']);
                     break;
 
                 case self::VALIDATOR_SIZE:
@@ -227,13 +227,15 @@ class Uploader {
     }
 
     /**
-     * @param int $size
+     * @param int|string  $size Support human readable size e.g. "200K", "1M"
      * @param int $maxSize
      *
      * @throws \Exception
      */
     public function validateSize($size, $maxSize)
     {
+        $maxSize = static::humanReadableToBytes($maxSize);
+
         if ($size > $maxSize) {
             $this->setError(static::ERROR_FILE_TOO_LARGE);
         }
@@ -302,20 +304,26 @@ class Uploader {
             foreach ($_FILES[ $key ]['name'] as $idx => $name) {
                 $this->files[ $idx ] = array(
                     'name'      => $name,
-                    'new_name'  => $name,
+                    'newName'   => $name,
+                    'fullPath'  => '',
                     'extension' => pathinfo($name, PATHINFO_EXTENSION),
-                    'type'      => $_FILES[ $key ]['type'][ $idx ],
-                    'tmp_name'  => $_FILES[ $key ]['tmp_name'][ $idx ],
+                    'mime'      => $_FILES[ $key ]['type'][ $idx ],
+                    'tmpName'   => $_FILES[ $key ]['tmp_name'][ $idx ],
                     'size'      => $_FILES[ $key ]['size'][ $idx ],
                     'error'     => $_FILES[ $key ]['error'][ $idx ]
-
                 );
             }
         } else {
-            $this->files[0] = $_FILES[ $key ];
-
-            $this->files[0]['new_name']  = $_FILES[ $key ]['name'];
-            $this->files[0]['extension'] = pathinfo($this->files[0]['name'], PATHINFO_EXTENSION);
+            $this->files[0] = array(
+                'name'      => $_FILES[ $key ]['name'],
+                'newName'   => $_FILES[ $key ]['name'],
+                'fullPath'  => '',
+                'extension' => pathinfo($_FILES[ $key ]['name'], PATHINFO_EXTENSION),
+                'mime'      => $_FILES[ $key ]['type'],
+                'tmpName'   => $_FILES[ $key ]['tmp_name'],
+                'size'      => $_FILES[ $key ]['size'],
+                'error'     => $_FILES[ $key ]['error']
+            );
         }
 
         foreach ($this->files as $key => &$file) {
@@ -329,19 +337,20 @@ class Uploader {
             $this->applyCallback($this->afterValidateCallback, $file);
 
             if ($this->randomName) {
-                $file['new_name'] = $this->getRandomName($file['extension']);
+                $file['newName'] = $this->getRandomName($file['extension']);
             }
 
-            $destinationFile = $this->getDestination() . $file['new_name'];
+            $destinationFile = $this->getDestination() . $file['newName'];
 
             if (!$this->overwrite && file_exists($destinationFile)) {
                 throw new \Exception("File {$file['name']} already exists");
             }
 
             $this->applyCallback($this->beforeUploadCallback, $file);
-            if (move_uploaded_file($file['tmp_name'], $destinationFile) === false) {
+            if (move_uploaded_file($file['tmpName'], $destinationFile) === false) {
                 throw new \Exception("Cannot move file {$file['name']} to destination folder");
             }
+            $file['fullPath'] = $destinationFile;
             $this->applyCallback($this->afterUploadCallback, $file);
         }
     }
@@ -406,6 +415,34 @@ class Uploader {
         if (is_callable($callback)) {
             call_user_func_array($callback, array($file, $this));
         }
+    }
+
+    /**
+     * Convert human readable size into bytes
+     *
+     * @param  string $input
+     *
+     * @return int
+     */
+    public static function humanReadableToBytes($input)
+    {
+        if (is_numeric($input)) {
+            return (int)$input;
+        }
+
+        $number = (int)$input;
+        $units  = array(
+            'b' => 1,
+            'k' => 1024,
+            'm' => 1048576,
+            'g' => 1073741824
+        );
+        $unit = strtolower(substr($input, -1));
+        if (isset($units[ $unit ])) {
+            $number = $number * $units[ $unit ];
+        }
+
+        return $number;
     }
 
 }
