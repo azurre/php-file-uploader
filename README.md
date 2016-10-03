@@ -1,5 +1,5 @@
 # Simple file uploader
-Very small(single class) and comfortable file uploader
+Very small(single class) and comfortable file uploader with validation
 
 # Installation
 
