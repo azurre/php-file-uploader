@@ -350,7 +350,7 @@ class Uploader {
             if (move_uploaded_file($file['tmpName'], $destinationFile) === false) {
                 throw new \Exception("Cannot move file {$file['name']} to destination folder");
             }
-            $file['fullPath'] = $destinationFile;
+            $file['fullPath'] = realpath($destinationFile);
             $this->applyCallback($this->afterUploadCallback, $file);
         }
     }

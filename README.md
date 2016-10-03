@@ -10,11 +10,11 @@ Very small(single class) and comfortable file uploader
   "repositories": [
     {
       "type": "vcs",
-      "url": "https://github.com/azurre/scheduler"
+      "url": "https://github.com/azurre/php-simple-file-uploader"
     }
   ],
   "require": {
-    "azurre/php-scheduler": "master"
+    "azurre/php-simple-file-uploader": "~1.1"
   }
 }
 ```
