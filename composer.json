@@ -1,0 +1,21 @@
+{
+  "name": "azurre/php-simple-file-uploader",
+  "description": "Simple file uploader with validation",
+  "keywords": ["upload", "validation", "file"],
+  "authors": [
+    {
+      "name": "Aleksandr Milenin",
+      "email": "admin@azrr.info"
+    }
+  ],
+  "autoload": {
+    "psr-0": {
+      "Azurre\\Component\\Http": "src/"
+    }
+  },
+  "license": "GPL-3.0",
+  "homepage": "https://github.com/azurre/php-simple-file-uploader",
+  "support": {
+    "issues": "https://github.com/azurre/php-simple-file-uploader/issues"
+  }
+}
