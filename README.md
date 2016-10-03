@@ -14,7 +14,7 @@ Very small(single class) and comfortable file uploader
     }
   ],
   "require": {
-    "azurre/php-simple-file-uploader": "~1.1"
+    "azurre/php-simple-file-uploader": "dev-master"
   }
 }
 ```
