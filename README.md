@@ -1,7 +1,5 @@
-# Simple file uploader
+# Simple file uploader [![Latest Version](https://img.shields.io/github/release/azurre/php-simple-file-uploader.svg?style=flat-square)](https://github.com/azurre/php-simple-file-uploader/releases)
 Very small(single class) and comfortable file uploader with validation
-
-[![Latest Version](https://img.shields.io/github/release/azurre/php-simple-file-uploader.svg?style=flat-square)](https://github.com/azurre/php-simple-file-uploader/releases)
 
 # Installation
 
