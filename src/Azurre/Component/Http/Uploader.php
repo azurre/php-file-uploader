@@ -1,7 +1,7 @@
 <?php
 /**
  * @date    04.03.2015
- * @version 1.0
+ * @version 1.3
  * @author  Aleksandr Milenin admin@azrr.info
  */
 
@@ -9,46 +9,54 @@ namespace Azurre\Component\Http;
 
 class Uploader {
 
-    //! Maximum try count to find random name for uploaded file
+    //! Maximum try count to find available name for uploaded file
     const NAME_TRY_COUNT = 10;
 
 
     const
-        ERROR_NO_ERROR = 0,
-        ERROR_INI_SIZE = 1,
-        ERROR_FORM_SIZE = 2,
-        ERROR_PARTIAL = 3,
-        ERROR_NO_FILE = 4,
-        ERROR_NO_TMP_DIR = 6,
-        ERROR_CANT_WRITE = 7,
-        ERROR_EXTENSION = 8,
-        ERROR_FILE_TOO_LARGE = 20,
-        ERROR_INVALID_MIMETYPE = 21,
+        ERROR_NO_ERROR          = 0,
+        ERROR_INI_SIZE          = 1,
+        ERROR_FORM_SIZE         = 2,
+        ERROR_PARTIAL           = 3,
+        ERROR_NO_FILE           = 4,
+        ERROR_NO_TMP_DIR        = 6,
+        ERROR_CANT_WRITE        = 7,
+        ERROR_EXTENSION         = 8,
+        ERROR_FILE_TOO_LARGE    = 20,
+        ERROR_INVALID_MIMETYPE  = 21,
         ERROR_INVALID_EXTENSION = 22,
+        ERROR_INVALID_FORMATTER = 23,
+        ERROR_NO_AVAILABLE_NAME = 24,
 
-        VALIDATOR_MIME = 0,
-        VALIDATOR_SIZE = 1,
-        VALIDATOR_EXTENSION = 2;
+        VALIDATOR_MIME      = 0,
+        VALIDATOR_SIZE      = 1,
+        VALIDATOR_EXTENSION = 2,
+
+        NAME_FORMAT_ORIGINAL = 0,
+        NAME_FORMAT_RANDOM   = 1,
+        NAME_FORMAT_COMBINED = 2;
 
     protected $errorMessages = array(
-        self::ERROR_NO_ERROR       => 'No errors',
-        self::ERROR_INI_SIZE       => 'File size exceeds the upload_max_filesize in php.ini',
-        self::ERROR_FORM_SIZE      => 'File size exceeds the html form MAX_FILE_SIZE directive',
-        self::ERROR_PARTIAL        => 'The uploaded file was only partially uploaded',
-        self::ERROR_NO_FILE        => 'No file was uploaded',
-        self::ERROR_NO_TMP_DIR     => 'Missing a temporary folder',
-        self::ERROR_CANT_WRITE     => 'Failed to write file to disk',
-        self::ERROR_EXTENSION      => 'A PHP extension stopped the file upload',
-        self::ERROR_FILE_TOO_LARGE => 'Validator: file too large'
+        self::ERROR_NO_ERROR          => 'No errors',
+        self::ERROR_INI_SIZE          => 'File size exceeds the upload_max_filesize in php.ini',
+        self::ERROR_FORM_SIZE         => 'File size exceeds the html form MAX_FILE_SIZE directive',
+        self::ERROR_PARTIAL           => 'The uploaded file was only partially uploaded',
+        self::ERROR_NO_FILE           => 'No file was uploaded',
+        self::ERROR_NO_TMP_DIR        => 'Missing a temporary folder',
+        self::ERROR_CANT_WRITE        => 'Failed to write file to disk',
+        self::ERROR_EXTENSION         => 'A PHP extension stopped the file upload',
+        self::ERROR_FILE_TOO_LARGE    => 'Validator: file too large',
+        self::ERROR_INVALID_FORMATTER => 'Formatter function must return filename',
+        self::ERROR_NO_AVAILABLE_NAME => 'Cannot find available name for uploaded file'
     );
 
 
     /**
-     * Set random name for each uploaded file
+     * Type of filename generation
      *
-     * @var bool
+     * @var int
      */
-    protected $randomName = false;
+    protected $nameFormat = self::NAME_FORMAT_COMBINED;
 
     /**
      * Overwrite existing files?
@@ -56,6 +64,13 @@ class Uploader {
      * @var bool
      */
     protected $overwrite = false;
+
+    /**
+     * Transliterate cyrillic names
+     *
+     * @var bool
+     */
+    protected $replaceCyrillic = true;
 
     /**
      * Path to storage
@@ -69,6 +84,7 @@ class Uploader {
         $afterValidateCallback,
         $beforeUploadCallback,
         $afterUploadCallback,
+        $nameFormatter,
         $files = array(),
         $validators = array(),
         $errorCode = self::ERROR_NO_ERROR;
@@ -77,9 +93,36 @@ class Uploader {
     public function __construct()
     {
         // fix http://stackoverflow.com/questions/4451664/make-php-pathinfo-return-the-correct-filename-if-the-filename-is-utf-8
-        setlocale(LC_ALL,'en_US.UTF-8');
+        setlocale(LC_ALL, 'en_US.UTF-8');
     }
 
+
+    /**
+     * Transliterate cyrillic names. Strongly recommended!
+     *
+     * @param bool $replace
+     *
+     * @return $this
+     */
+    public function setReplaceCyrillic($replace = true)
+    {
+        $this->replaceCyrillic = (bool)$replace;
+
+        return $this;
+    }
+
+
+    /**
+     * @param int $nameFormat
+     *
+     * @return $this
+     */
+    public function setNameFormat($nameFormat)
+    {
+        $this->nameFormat = (int)$nameFormat;
+
+        return $this;
+    }
 
     /**
      * @return int
@@ -99,7 +142,7 @@ class Uploader {
      */
     public function setError($errorCode, $throwException = true)
     {
-        $this->errorCode = $errorCode;
+        $this->errorCode = (int)$errorCode;
 
         if ($throwException) {
             throw new \Exception($this->getErrorMessage(), $this->errorCode);
@@ -135,7 +178,7 @@ class Uploader {
      */
     public function setOverwrite($overwrite = true)
     {
-        $this->overwrite = $overwrite;
+        $this->overwrite = (bool)$overwrite;
 
         return $this;
     }
@@ -152,19 +195,6 @@ class Uploader {
 
         return $this;
     }
-
-    /**
-     * @param bool $generateRandomName
-     *
-     * @return $this
-     */
-    public function setRandomName($generateRandomName = false)
-    {
-        $this->randomName = $generateRandomName;
-
-        return $this;
-    }
-
 
     /**
      * @return array
@@ -234,8 +264,8 @@ class Uploader {
     }
 
     /**
-     * @param int|string  $size Support human readable size e.g. "200K", "1M"
-     * @param int $maxSize
+     * @param int|string $size Support human readable size e.g. "200K", "1M"
+     * @param int        $maxSize
      *
      * @throws \Exception
      */
@@ -273,24 +303,44 @@ class Uploader {
     }
 
     /**
-     * @param string $extension
+     * @param array $file
      *
      * @return string
      * @throws \Exception
      */
-    public function getRandomName($extension)
+    protected function getName($file)
     {
+        if (!empty($this->nameFormatter)) {
+            $newName = $this->applyCallback($this->nameFormatter, $file);
+            if (empty($newName) || !is_string($newName)) {
+                $this->setError(static::ERROR_INVALID_FORMATTER);
+            }
+
+            return $newName;
+        }
+
+        if ($this->nameFormat === static::NAME_FORMAT_ORIGINAL) {
+            return $file['fullName'];
+        }
+
         $tryCount = 0;
+        $prefix   = '';
         while ($tryCount < static::NAME_TRY_COUNT) {
             $tryCount++;
-            $newName = uniqid() . '.' . $extension;
-            $path    = $this->getDestination() . $newName;
+            if ($this->nameFormat === static::NAME_FORMAT_COMBINED) {
+                $prefix = ($this->replaceCyrillic ? static::transliterate($file['name']) : $file['name']) . '_';
+            }
+
+            $newName = $prefix . uniqid() . '.' . $file['extension'];
+
+            $path = $this->getDestination() . $newName;
             if (!file_exists($path)) {
                 return $newName;
             }
         }
 
-        throw new \Exception('Cannot find free random name for file');
+        $this->setError(static::ERROR_NO_AVAILABLE_NAME);
+        return 'error'; // IDE fix :(
     }
 
 
@@ -310,7 +360,8 @@ class Uploader {
         if (is_array($_FILES[ $key ]['tmp_name'])) {
             foreach ($_FILES[ $key ]['name'] as $idx => $name) {
                 $this->files[ $idx ] = array(
-                    'name'      => $name,
+                    'name'      => pathinfo($name, PATHINFO_FILENAME),
+                    'fullName'  => $name,
                     'newName'   => $name,
                     'fullPath'  => '',
                     'extension' => pathinfo($name, PATHINFO_EXTENSION),
@@ -322,7 +373,8 @@ class Uploader {
             }
         } else {
             $this->files[0] = array(
-                'name'      => $_FILES[ $key ]['name'],
+                'name'      => pathinfo($_FILES[ $key ]['name'], PATHINFO_FILENAME),
+                'fullName'  => $_FILES[ $key ]['name'],
                 'newName'   => $_FILES[ $key ]['name'],
                 'fullPath'  => '',
                 'extension' => pathinfo($_FILES[ $key ]['name'], PATHINFO_EXTENSION),
@@ -343,9 +395,8 @@ class Uploader {
             $this->applyValidators($file);
             $this->applyCallback($this->afterValidateCallback, $file);
 
-            if ($this->randomName) {
-                $file['newName'] = $this->getRandomName($file['extension']);
-            }
+
+            $file['newName'] = $this->getName($file);
 
             $destinationFile = $this->getDestination() . $file['newName'];
 
@@ -412,16 +463,34 @@ class Uploader {
     }
 
     /**
+     * Set new filename formatter function
+     *
+     * @param callable $nameFormatter
+     *
+     * @return $this
+     */
+    public function setNameFormatter($nameFormatter)
+    {
+        $this->nameFormatter = $nameFormatter;
+
+        return $this;
+    }
+
+    /**
      * Apply callable
      *
      * @param  callable $callback
      * @param  array    $file
+     *
+     * @return mixed
      */
     protected function applyCallback($callback, $file)
     {
         if (is_callable($callback)) {
-            call_user_func_array($callback, array($file, $this));
+            return call_user_func_array($callback, array($file, $this));
         }
+
+        return false;
     }
 
     /**
@@ -444,12 +513,25 @@ class Uploader {
             'm' => 1048576,
             'g' => 1073741824
         );
-        $unit = strtolower(substr($input, -1));
+        $unit   = strtolower(substr($input, -1));
         if (isset($units[ $unit ])) {
             $number = $number * $units[ $unit ];
         }
 
         return $number;
+    }
+
+    /**
+     * @param string $string
+     *
+     * @return string
+     */
+    public static function transliterate($string)
+    {
+        $roman    = array("Sch", "sch", 'Yo', 'Zh', 'Kh', 'Ts', 'Ch', 'Sh', 'Yu', 'ya', 'yo', 'zh', 'kh', 'ts', 'ch', 'sh', 'yu', 'ya', 'A', 'B', 'V', 'G', 'D', 'E', 'Z', 'I', 'Y', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'F', '', 'Y', '', 'E', 'a', 'b', 'v', 'g', 'd', 'e', 'z', 'i', 'y', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', '', 'y', '', 'e');
+        $cyrillic = array("Щ", "щ", 'Ё', 'Ж', 'Х', 'Ц', 'Ч', 'Ш', 'Ю', 'я', 'ё', 'ж', 'х', 'ц', 'ч', 'ш', 'ю', 'я', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Ь', 'Ы', 'Ъ', 'Э', 'а', 'б', 'в', 'г', 'д', 'е', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'ь', 'ы', 'ъ', 'э');
+
+        return str_replace($cyrillic, $roman, $string);
     }
 
 }
