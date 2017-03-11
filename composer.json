@@ -13,7 +13,7 @@
       "Azurre\\Component\\Http": "src/"
     }
   },
-  "license": "GPL-3.0",
+  "license": "MIT",
   "homepage": "https://github.com/azurre/php-simple-file-uploader",
   "support": {
     "issues": "https://github.com/azurre/php-simple-file-uploader/issues"
