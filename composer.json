@@ -1,21 +1,22 @@
 {
-  "name": "azurre/php-simple-file-uploader",
-  "description": "Simple file uploader with validation",
-  "keywords": ["upload", "validation", "file"],
-  "authors": [
-    {
-      "name": "Aleksandr Milenin",
-      "email": "admin@azrr.info"
+    "name": "azurre/php-simple-file-uploader",
+    "description": "Simple file uploader with validation",
+    "version": "1.5",
+    "keywords": ["upload", "validation", "file"],
+    "license": "MIT",
+    "homepage": "https://github.com/azurre/php-simple-file-uploader",
+    "support": {
+        "issues": "https://github.com/azurre/php-simple-file-uploader/issues"
+    },
+    "authors": [
+        {
+            "name": "Aleksandr Milenin",
+            "email": "admin@azrr.info"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Azurre\\Component\\Http\\": "src/"
+        }
     }
-  ],
-  "autoload": {
-    "psr-0": {
-      "Azurre\\Component\\Http": "src/"
-    }
-  },
-  "license": "MIT",
-  "homepage": "https://github.com/azurre/php-simple-file-uploader",
-  "support": {
-    "issues": "https://github.com/azurre/php-simple-file-uploader/issues"
-  }
 }
