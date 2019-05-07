@@ -10,62 +10,73 @@ namespace Azurre\Component\Http;
 /**
  * Class Uploader
  */
-class Uploader {
-
+class Uploader
+{
     /**
      * @var int Maximum try count to find available name for uploaded file
      */
     const NAME_TRY_COUNT = 10;
 
     /**#@+
-     * Constants defined
+     * Error codes
      */
     const
-        ERROR_NO_ERROR          = 0,
-        ERROR_INI_SIZE          = 1,
-        ERROR_FORM_SIZE         = 2,
-        ERROR_PARTIAL           = 3,
-        ERROR_NO_FILE           = 4,
-        ERROR_NO_TMP_DIR        = 6,
-        ERROR_CANNOT_WRITE      = 7,
-        ERROR_EXTENSION         = 8,
-        ERROR_FILE_TOO_LARGE    = 20,
-        ERROR_INVALID_MIMETYPE  = 21,
-        ERROR_INVALID_EXTENSION = 22,
-        ERROR_INVALID_FORMATTER = 23,
-        ERROR_NO_AVAILABLE_NAME = 24,
-        ERROR_CANNOT_GET_FILE   = 25,
-        ERROR_CANNOT_MOVE_FILE  = 26,
+        ERROR_NO_ERROR = UPLOAD_ERR_OK,
+        ERROR_INI_SIZE = UPLOAD_ERR_INI_SIZE,
+        ERROR_FORM_SIZE = UPLOAD_ERR_FORM_SIZE,
+        ERROR_PARTIAL = UPLOAD_ERR_PARTIAL,
+        ERROR_NO_FILE = UPLOAD_ERR_NO_FILE,
+        ERROR_NO_TMP_DIR = UPLOAD_ERR_NO_TMP_DIR,
+        ERROR_CANNOT_WRITE = UPLOAD_ERR_CANT_WRITE,
+        ERROR_EXTENSION = UPLOAD_ERR_EXTENSION,
+        ERROR_FILE_TOO_LARGE = 50,
+        ERROR_INVALID_MIMETYPE = 51,
+        ERROR_INVALID_EXTENSION = 52,
+        ERROR_INVALID_FORMATTER = 53,
+        ERROR_FILENAME_EXISTS = 54,
+        ERROR_NO_AVAILABLE_NAME = 55,
+        ERROR_CANNOT_GET_FILE = 56,
+        ERROR_CANNOT_MOVE_FILE = 57;
+    /**#@-*/
 
-        VALIDATOR_MIME      = 0,
-        VALIDATOR_SIZE      = 1,
-        VALIDATOR_EXTENSION = 2,
+    /**#@+
+     * Validator codes
+     */
+    const
+        VALIDATOR_MIME = 0,
+        VALIDATOR_SIZE = 1,
+        VALIDATOR_EXTENSION = 2;
+    /**#@-*/
 
+    /**#@+
+     * Name format codes
+     */
+    const
         NAME_FORMAT_ORIGINAL = 0,
-        NAME_FORMAT_RANDOM   = 1,
+        NAME_FORMAT_RANDOM = 1,
         NAME_FORMAT_COMBINED = 2;
     /**#@-*/
 
     /**
      * @var array Error messages
      */
-    protected $errorMessages = array(
-        self::ERROR_NO_ERROR          => 'No errors',
-        self::ERROR_INI_SIZE          => 'File size exceeds the upload_max_filesize in php.ini',
-        self::ERROR_FORM_SIZE         => 'File size exceeds the html form MAX_FILE_SIZE directive',
-        self::ERROR_PARTIAL           => 'The uploaded file was only partially uploaded',
-        self::ERROR_NO_FILE           => 'No file was uploaded',
-        self::ERROR_NO_TMP_DIR        => 'Missing a temporary folder',
-        self::ERROR_CANNOT_WRITE      => 'Failed to write file to disk',
-        self::ERROR_EXTENSION         => 'A PHP extension stopped the file upload',
+    protected static $errorMessages = [
+        self::ERROR_NO_ERROR => 'No errors',
+        self::ERROR_INI_SIZE => 'File size exceeds the upload_max_filesize in php.ini',
+        self::ERROR_FORM_SIZE => 'File size exceeds the html form MAX_FILE_SIZE directive',
+        self::ERROR_PARTIAL => 'The uploaded file was only partially uploaded',
+        self::ERROR_NO_FILE => 'No file was uploaded',
+        self::ERROR_NO_TMP_DIR => 'Missing a temporary folder',
+        self::ERROR_CANNOT_WRITE => 'Failed to write file to disk',
+        self::ERROR_EXTENSION => 'A PHP extension stopped the file upload',
         self::ERROR_INVALID_EXTENSION => 'Validator: restricted extension',
-        self::ERROR_INVALID_MIMETYPE  => 'Validator: restricted mime-type',
-        self::ERROR_FILE_TOO_LARGE    => 'Validator: file too large',
+        self::ERROR_INVALID_MIMETYPE => 'Validator: restricted mime-type',
+        self::ERROR_FILE_TOO_LARGE => 'Validator: file too large',
         self::ERROR_INVALID_FORMATTER => 'Formatter function must return filename',
         self::ERROR_NO_AVAILABLE_NAME => 'Cannot find available name for uploaded file',
-        self::ERROR_CANNOT_GET_FILE   => 'Cannot get file content from URL',
-        self::ERROR_CANNOT_MOVE_FILE  => 'Cannot move uploaded file'
-    );
+        self::ERROR_CANNOT_GET_FILE => 'Cannot get file content from URL',
+        self::ERROR_CANNOT_MOVE_FILE => 'Cannot move uploaded file'
+    ];
 
     /** @var int Type of filename generation */
     protected $nameFormat = self::NAME_FORMAT_COMBINED;
@@ -97,7 +108,10 @@ class Uploader {
     /** @var bool */
     protected $isUrlUpload = false;
 
-    /** @var array */
+    /** @var int|null Make directories tree in destination */
+    protected $splitTreeSize;
+
+    /** @var \Azurre\Component\Http\Uploader\FileInterface[] */
     protected $files = [];
 
     /** @var array */
@@ -127,7 +141,6 @@ class Uploader {
     public function setReplaceCyrillic($replace = true)
     {
         $this->replaceCyrillic = (bool)$replace;
-
         return $this;
     }
 
@@ -146,7 +159,6 @@ class Uploader {
     public function setNameFormat($nameFormat)
     {
         $this->nameFormat = (int)$nameFormat;
-
         return $this;
     }
 
@@ -158,33 +170,19 @@ class Uploader {
         return $this->errorCode;
     }
 
-
     /**
-     * @param int  $errorCode
+     * @param int $errorCode
      * @param bool $throwException
      * @return $this
-     * @throws \Exception
+     * @throws UploadException
      */
     public function setError($errorCode, $throwException = true)
     {
         $this->errorCode = (int)$errorCode;
-
         if ($throwException) {
-            throw new \Exception($this->getErrorMessage(), $this->errorCode);
+            throw new UploadException($this->getErrorMessage(), $this->errorCode);
         }
-
         return $this;
-    }
-
-    /**
-     * @return $this
-     */
-    public function clearErrorCode()
-    {
-        $this->errorCode = static::ERROR_NO_ERROR;
-
-        return $this;
-
     }
 
     /**
@@ -192,9 +190,8 @@ class Uploader {
      */
     public function getErrorMessage()
     {
-        return $this->errorMessages[$this->errorCode];
+        return static::$errorMessages[$this->errorCode];
     }
-
 
     /**
      * @param bool $overwrite
@@ -203,111 +200,7 @@ class Uploader {
     public function setOverwrite($overwrite = true)
     {
         $this->overwrite = (bool)$overwrite;
-
         return $this;
-    }
-
-
-    /**
-     * @param string $storagePath
-     * @return $this
-     */
-    public function setStoragePath($storagePath)
-    {
-        $this->storagePath = $storagePath;
-
-        return $this;
-    }
-
-    /**
-     * @return array
-     */
-    public function getFiles()
-    {
-        return $this->files;
-    }
-
-
-    /**
-     * @param int   $validatorType
-     * @param mixed $data
-     * @return $this
-     * @throws \Exception
-     */
-    public function addValidator($validatorType, $data)
-    {
-        if (!is_int($validatorType) || $validatorType < 0 || $validatorType > 2) {
-            throw new \Exception('Invalid validator type');
-        }
-        $this->validators[] = ['type' => $validatorType, 'data' => $data];
-        return $this;
-    }
-
-    /**
-     * @param array $file
-     * @throws \Exception
-     */
-    public function applyValidators(array $file)
-    {
-        foreach ($this->validators as $validator) {
-            switch ($validator['type']) {
-                case self::VALIDATOR_MIME:
-                    $this->validateMimetype($file['mime'], $validator['data']);
-                    break;
-
-                case self::VALIDATOR_SIZE:
-                    $this->validateSize($file['size'], $validator['data']);
-                    break;
-
-                case self::VALIDATOR_EXTENSION:
-                    $this->validateExtension($file['extension'], $validator['data']);
-                    break;
-
-            }
-        }
-    }
-
-    /**
-     * @param string $mimeType
-     * @param array  $allowedMimetypes
-     * @return void
-     * @throws \Exception
-     */
-    public function validateMimetype($mimeType, $allowedMimetypes)
-    {
-        $allowedMimetypes = is_array($allowedMimetypes) ? $allowedMimetypes : [$allowedMimetypes];
-        if (!in_array($mimeType, $allowedMimetypes, true)) {
-            $this->setError(static::ERROR_INVALID_MIMETYPE);
-        }
-    }
-
-    /**
-     * @param int|string $size Support human readable size e.g. "200K", "1M"
-     * @param int        $maxSize
-     * @throws \Exception
-     */
-    public function validateSize($size, $maxSize)
-    {
-        $maxSize = static::humanReadableToBytes($maxSize);
-
-        if ($size > $maxSize) {
-            $this->setError(static::ERROR_FILE_TOO_LARGE);
-        }
-    }
-
-    /**
-     * @param string $extension
-     * @param array  $allowedExtensions
-     * @return void
-     * @throws \Exception
-     */
-    public function validateExtension($extension, $allowedExtensions)
-    {
-        $extension = strtolower($extension);
-        $allowedExtensions = is_array($allowedExtensions) ? $allowedExtensions : [$allowedExtensions];
-        if (!in_array($extension, $allowedExtensions, true)) {
-            throw new \Exception("Extension {$extension} not allowed");
-        }
     }
 
     /**
@@ -319,23 +212,129 @@ class Uploader {
     }
 
     /**
-     * @param array $file
-     * @return string
-     * @throws \Exception
+     * @param string $path
+     * @return $this
      */
-    protected function getName($file)
+    public function setDestination($path)
+    {
+        $path = rtrim($path, DIRECTORY_SEPARATOR);
+        $this->storagePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path) . DIRECTORY_SEPARATOR;
+        return $this;
+    }
+
+    /**
+     * @return \Azurre\Component\Http\Uploader\FileInterface[]
+     */
+    public function getFiles()
+    {
+        return $this->files;
+    }
+
+    /**
+     * @return \Azurre\Component\Http\Uploader\FileInterface|array
+     */
+    public function getFirstFile()
+    {
+        return reset($this->files);
+    }
+
+    /**
+     * @param int $validatorType
+     * @param mixed $data
+     * @return $this
+     * @throws UploadException
+     */
+    public function addValidator($validatorType, $data)
+    {
+        if (!\is_int($validatorType) || $validatorType < 0 || $validatorType > 2) {
+            throw new UploadException('Invalid validator type');
+        }
+        $this->validators[] = ['type' => $validatorType, 'data' => $data];
+        return $this;
+    }
+
+    /**
+     * @param \Azurre\Component\Http\Uploader\FileInterface $file
+     * @throws UploadException
+     */
+    public function applyValidators(\Azurre\Component\Http\Uploader\FileInterface $file)
+    {
+        foreach ($this->validators as $validator) {
+            switch ($validator['type']) {
+                case self::VALIDATOR_MIME:
+                    $this->validateMimeType($file['mime'], $validator['data']);
+                break;
+
+                case self::VALIDATOR_SIZE:
+                    $this->validateSize($file['size'], $validator['data']);
+                break;
+
+                case self::VALIDATOR_EXTENSION:
+                    $this->validateExtension($file['extension'], $validator['data']);
+                break;
+            }
+        }
+    }
+
+    /**
+     * @param string $mimeType
+     * @param array $allowedMimeTypes
+     * @return void
+     * @throws UploadException
+     */
+    public function validateMimeType($mimeType, $allowedMimeTypes)
+    {
+        $allowedMimeTypes = \is_array($allowedMimeTypes) ? $allowedMimeTypes : [$allowedMimeTypes];
+        if (!\in_array($mimeType, $allowedMimeTypes, true)) {
+            $this->setError(static::ERROR_INVALID_MIMETYPE);
+        }
+    }
+
+    /**
+     * @param int|string $size Support human readable size e.g. "200K", "1M"
+     * @param int $maxSize
+     * @throws UploadException
+     */
+    public function validateSize($size, $maxSize)
+    {
+        $maxSize = static::humanReadableToBytes($maxSize);
+        if ($size > $maxSize) {
+            $this->setError(static::ERROR_FILE_TOO_LARGE);
+        }
+    }
+
+    /**
+     * @param string $extension
+     * @param array $allowedExtensions
+     * @return void
+     * @throws UploadException
+     */
+    public function validateExtension($extension, $allowedExtensions)
+    {
+        $extension = strtolower($extension);
+        $allowedExtensions = \is_array($allowedExtensions) ? $allowedExtensions : [$allowedExtensions];
+        if (!\in_array($extension, $allowedExtensions, true)) {
+            throw new UploadException("Extension {$extension} not allowed");
+        }
+    }
+
+    /**
+     * @param \Azurre\Component\Http\Uploader\FileInterface $file
+     * @return string
+     * @throws UploadException
+     */
+    protected function getName(\Azurre\Component\Http\Uploader\FileInterface $file)
     {
         if (!empty($this->nameFormatter)) {
             $newName = $this->applyCallback($this->nameFormatter, $file);
-            if (empty($newName) || !is_string($newName)) {
+            if (empty($newName) || !\is_string($newName)) {
                 $this->setError(static::ERROR_INVALID_FORMATTER);
             }
-
             return $newName;
         }
 
         if ($this->getNameFormat() === static::NAME_FORMAT_ORIGINAL) {
-            return $file['fullName'];
+            return $file->getFullName();
         }
 
         $tryCount = 0;
@@ -343,9 +342,9 @@ class Uploader {
         while ($tryCount < static::NAME_TRY_COUNT) {
             $tryCount++;
             if ($this->getNameFormat() === static::NAME_FORMAT_COMBINED) {
-                $prefix = ($this->replaceCyrillic ? static::transliterate($file['name']) : $file['name']) . '_';
+                $prefix = ($this->replaceCyrillic ? static::transliterate($file->getName()) : $file->getName()) . '_';
             }
-            $newName = uniqid($prefix, true) . '.' . $file['extension'];
+            $newName = uniqid($prefix, true) . '.' . $file->getExtension();
             $path = $this->getDestination() . $newName;
             if (!file_exists($path)) {
                 return $newName;
@@ -358,79 +357,104 @@ class Uploader {
 
     /**
      * @param string $key Key of $_FILE array
-     * @throws \Exception
+     * @throws UploadException
      */
     public function upload($key)
     {
         $this->isUrlUpload = false;
-        $this->clearErrorCode();
-
+        $this->reset();
         if (!isset($_FILES[$key])) {
-            throw new \Exception("Cannot find uploaded file(s) with key: {$key}");
+            throw new UploadException("Cannot find uploaded file(s) with key: {$key}");
         }
-
-        if (is_array($_FILES[$key]['tmp_name'])) {
+        if (\is_array($_FILES[$key]['tmp_name'])) {
             foreach ($_FILES[$key]['name'] as $idx => $name) {
-                $this->files[$idx] = [
+                $this->files[$idx] = \Azurre\Component\Http\Uploader\File::create([
                     'name' => pathinfo($name, PATHINFO_FILENAME),
-                    'fullName' => $name,
-                    'newName' => $name,
-                    'fullPath' => '',
+                    'full_name' => $name,
+                    'new_name' => $name,
+                    'full_path' => '',
                     'extension' => pathinfo($name, PATHINFO_EXTENSION),
-                    'mime' => $_FILES[$key]['type'][$idx],
-                    'tmpName' => $_FILES[$key]['tmp_name'][$idx],
+                    'mime_type' => $_FILES[$key]['type'][$idx],
+                    'tmp_name' => $_FILES[$key]['tmp_name'][$idx],
                     'size' => $_FILES[$key]['size'][$idx],
-                    'error' => $_FILES[$key]['error'][$idx]
-                ];
+                    'error_code' => $_FILES[$key]['error'][$idx]
+                ]);
             }
         } else {
-            $this->files[0] = [
+            $this->files[0] =  \Azurre\Component\Http\Uploader\File::create([
                 'name' => pathinfo($_FILES[$key]['name'], PATHINFO_FILENAME),
-                'fullName' => $_FILES[$key]['name'],
-                'newName' => $_FILES[$key]['name'],
-                'fullPath' => '',
+                'full_name' => $_FILES[$key]['name'],
+                'new_name' => $_FILES[$key]['name'],
+                'full_path' => '',
                 'extension' => pathinfo($_FILES[$key]['name'], PATHINFO_EXTENSION),
-                'mime' => $_FILES[$key]['type'],
-                'tmpName' => $_FILES[$key]['tmp_name'],
+                'mime_type' => $_FILES[$key]['type'],
+                'tmp_name' => $_FILES[$key]['tmp_name'],
                 'size' => $_FILES[$key]['size'],
-                'error' => $_FILES[$key]['error']
-            ];
+                'error_code' => $_FILES[$key]['error']
+            ]);
         }
         $this->process();
     }
 
     /**
      * @return void
-     * @throws \Exception
+     * @throws UploadException
      */
     protected function process()
     {
-        foreach ($this->files as $key => $file) {
-            if ($file['error'] !== UPLOAD_ERR_OK) {
-                $this->errorCode = $file['error'];
+        foreach ($this->files as $file) {
+            if ($file->getErrorCode() !== self::ERROR_NO_ERROR) {
+                $this->errorCode = $file->getErrorCode();
                 continue;
             }
             $this->applyCallback($this->beforeValidateCallback, $file);
             $this->applyValidators($file);
             $this->applyCallback($this->afterValidateCallback, $file);
-            $file['newName'] = $this->getName($file);
-            $destinationFile = $this->getDestination() . $file['newName'];
+            if ($file->getErrorCode() !== self::ERROR_NO_ERROR) {
+                continue;
+            }
+            $file->setNewName($this->getName($file));
+            $destination = $this->getDestination();
+            if ($this->getSplitTreeSize() > 0) {
+                $destination = "{$destination}{$this->getSplitTreePath($file->getNewName())}" . DIRECTORY_SEPARATOR;
+            }
+            $destinationFile = $destination . $file->getNewName();
             if (!$this->overwrite && file_exists($destinationFile)) {
-                throw new \Exception("File {$file['name']} already exists");
+                $file->setErrorCode(static::ERROR_FILENAME_EXISTS);
+                $this->setError(static::ERROR_FILENAME_EXISTS);
             }
             $this->applyCallback($this->beforeUploadCallback, $file);
+            $this->createDestination($destination);
             if ($this->isUrlUpload) {
-                if (@rename($file['tmpName'], $destinationFile) === false) {
+                if (rename($file->getTmpName(), $destinationFile) === false) {
+                    $file->setErrorCode(static::ERROR_CANNOT_MOVE_FILE);
                     $this->setError(static::ERROR_CANNOT_MOVE_FILE);
                 }
                 chmod($destinationFile, $this->chmod);
-            } else if (@move_uploaded_file($file['tmpName'], $destinationFile) === false) {
-                $this->setError(static::ERROR_CANNOT_MOVE_FILE);
+            } else {
+                if (move_uploaded_file($file->getTmpName(), $destinationFile) === false) {
+                    $file->setErrorCode(static::ERROR_CANNOT_MOVE_FILE);
+                    $this->setError(static::ERROR_CANNOT_MOVE_FILE);
+                }
             }
-            $file['fullPath'] = realpath($destinationFile);
+            $file->setFullPath(realpath($destinationFile));
             $this->applyCallback($this->afterUploadCallback, $file);
-            $this->files[$key] = $file;
         }
+    }
+
+    /**
+     * @param string $path
+     * @return $this
+     * @throws UploadException
+     */
+    protected function createDestination($path)
+    {
+        if (!is_dir($path)) {
+            if (!mkdir($path, 0777, true) && !is_dir($path)) {
+                throw new UploadException("Can't create directory \"{$path}\"");
+            }
+        }
+        return $this;
     }
 
     /**
@@ -441,35 +465,34 @@ class Uploader {
     public function uploadByUrl($url)
     {
         $this->isUrlUpload = true;
-        $this->clearErrorCode();
+        $this->reset();
         $urlInfo = pathinfo($url);
         $basename = empty($urlInfo['basename']) ? 'noname' : $urlInfo['basename'];
         $basename = preg_replace('/[^\w\.\-]/', '', $basename);
         $tempFile = tempnam(sys_get_temp_dir(), 'upload');
-        $this->files = [];
-        $this->files[0] = [
+        $file = \Azurre\Component\Http\Uploader\File::create([
             'name' => isset($urlInfo['filename']) ? $urlInfo['filename'] : 'noname',
-            'fullName' => $basename,
-            'newName' => isset($urlInfo['basename']) ? $urlInfo['basename'] : 'noname',
-            'fullPath' => '',
+            'full_name' => $basename,
+            'new_name' => isset($urlInfo['basename']) ? $urlInfo['basename'] : 'noname',
+            'full_path' => '',
             'extension' => isset($urlInfo['extension']) ? $urlInfo['extension'] : '',
-            'mime' => 'application/octet-stream',
-            'tmpName' => $tempFile,
+            'mime_type' => 'application/octet-stream',
+            'tmp_name' => $tempFile,
             'size' => 0,
-            'error' => $tempFile ? static::ERROR_NO_ERROR : static::ERROR_NO_TMP_DIR
-        ];
+            'error_code' => $tempFile ? static::ERROR_NO_ERROR : static::ERROR_NO_TMP_DIR
+        ]);
         //@todo maxFileSize
-        if (!$content = @file_get_contents($url)) {
-            $this->files[0]['error'] = static::ERROR_CANNOT_GET_FILE;
+        if (!$content = file_get_contents($url)) {
+            $file->setErrorCode(static::ERROR_CANNOT_GET_FILE);
             return;
         }
-        $this->files[0]['size'] = strlen($content);
-        if (!@file_put_contents($tempFile, $content)) {
-            $this->files[0]['error'] = static::ERROR_CANNOT_WRITE;
+        $file->setSize(\strlen($content));
+        if (!file_put_contents($tempFile, $content)) {
+            $file->setErrorCode(static::ERROR_CANNOT_WRITE);
             return;
         }
-        if (function_exists('\mime_content_type')) {
-            $this->files[0]['mime'] = \mime_content_type($tempFile);
+        if (\function_exists('\mime_content_type')) {
+            $file->setMimeType(\mime_content_type($tempFile));
         }
         $this->process();
     }
@@ -481,7 +504,6 @@ class Uploader {
     public function beforeValidate($callback)
     {
         $this->beforeValidateCallback = $callback;
-
         return $this;
     }
 
@@ -492,7 +514,6 @@ class Uploader {
     public function afterValidate($callback)
     {
         $this->afterValidateCallback = $callback;
-
         return $this;
     }
 
@@ -514,8 +535,15 @@ class Uploader {
     public function afterUpload($callback)
     {
         $this->afterUploadCallback = $callback;
-
         return $this;
+    }
+
+    /**
+     * @return \Closure|null
+     */
+    public function getNameFormatter()
+    {
+        return $this->nameFormatter;
     }
 
     /**
@@ -527,7 +555,24 @@ class Uploader {
     public function setNameFormatter($nameFormatter)
     {
         $this->nameFormatter = $nameFormatter;
+        return $this;
+    }
 
+    /**
+     * @return int|null
+     */
+    public function getSplitTreeSize()
+    {
+        return $this->splitTreeSize;
+    }
+
+    /**
+     * @param int|null $treeSize
+     * @return $this
+     */
+    public function setSplitTreeSize($treeSize)
+    {
+        $this->splitTreeSize = $treeSize;
         return $this;
     }
 
@@ -535,16 +580,34 @@ class Uploader {
      * Apply callable
      *
      * @param  callable $callback
-     * @param  array    $file
+     * @param  \Azurre\Component\Http\Uploader\FileInterface $file
      * @return mixed
      */
     protected function applyCallback($callback, $file)
     {
-        if (is_callable($callback)) {
+        if (\is_callable($callback)) {
             return $callback($file, $this);
         }
-
         return false;
+    }
+
+    /**
+     * @param string $fileName
+     * @param bool $glue
+     * @return string
+     */
+    public function getSplitTreePath($fileName, $glue = true)
+    {
+        $hash = md5($fileName);
+        $tree = \array_slice(str_split($hash, 3), 0, $this->getSplitTreeSize());
+        return $glue ? implode(DIRECTORY_SEPARATOR, $tree) : $tree;
+    }
+
+    public function reset()
+    {
+        $this->errorCode = static::ERROR_NO_ERROR;
+        $this->files = [];
+        return $this;
     }
 
     /**
@@ -559,12 +622,12 @@ class Uploader {
             return (int)$input;
         }
         $number = (int)$input;
-        $units  = array(
+        $units = [
             'b' => 1,
             'k' => 1024,
             'm' => 1048576,
             'g' => 1073741824
-        );
+        ];
         $unit = strtolower(substr($input, -1));
         if (isset($units[$unit])) {
             $number *= $units[$unit];
@@ -575,14 +638,12 @@ class Uploader {
 
     /**
      * @param string $string
-     *
      * @return string
      */
     public static function transliterate($string)
     {
-        $roman    = array('Sch', 'sch', 'Yo', 'Zh', 'Kh', 'Ts', 'Ch', 'Sh', 'Yu', 'ya', 'yo', 'zh', 'kh', 'ts', 'ch', 'sh', 'yu', 'ya', 'A', 'B', 'V', 'G', 'D', 'E', 'Z', 'I', 'Y', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'F', '', 'Y', '', 'E', 'a', 'b', 'v', 'g', 'd', 'e', 'z', 'i', 'y', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', '', 'y', '', 'e');
-        $cyrillic = array('Щ', 'щ', 'Ё', 'Ж', 'Х', 'Ц', 'Ч', 'Ш', 'Ю', 'я', 'ё', 'ж', 'х', 'ц', 'ч', 'ш', 'ю', 'я', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Ь', 'Ы', 'Ъ', 'Э', 'а', 'б', 'в', 'г', 'д', 'е', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'ь', 'ы', 'ъ', 'э');
-
+        $roman    = ['Sch', 'sch', 'Yo', 'Zh', 'Kh', 'Ts', 'Ch', 'Sh', 'Yu', 'ya', 'yo', 'zh', 'kh', 'ts', 'ch', 'sh', 'yu', 'ya', 'A', 'B', 'V', 'G', 'D', 'E', 'Z', 'I', 'Y', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'F', '', 'Y', '', 'E', 'a', 'b', 'v', 'g', 'd', 'e', 'z', 'i', 'y', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', '', 'y', '', 'e'];
+        $cyrillic = ['Щ', 'щ', 'Ё', 'Ж', 'Х', 'Ц', 'Ч', 'Ш', 'Ю', 'я', 'ё', 'ж', 'х', 'ц', 'ч', 'ш', 'ю', 'я', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Ь', 'Ы', 'Ъ', 'Э', 'а', 'б', 'в', 'г', 'д', 'е', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'ь', 'ы', 'ъ', 'э'];
         return str_replace($cyrillic, $roman, $string);
     }
 }
