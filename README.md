@@ -8,6 +8,7 @@ Small, comfortable and powerful file uploader
 * Easy to extend/customize
 * Upload by URL
 * Unified upload result
+* Cyrillic transliteration 
 
 ## Installation
 
