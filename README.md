@@ -91,7 +91,8 @@ if (isset($_FILES['file'])) {
 
 ?>
 <form method="POST" enctype="multipart/form-data">
-    <input type="file" name="file" value="" />
+    <input type="file" name="file[]" />
+    <input type="file" name="file[]" />
     <input type="submit" value="Upload File" />
 </form>
 ```
