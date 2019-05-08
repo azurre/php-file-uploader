@@ -1,8 +1,8 @@
 <?php
 /**
- * @date    29.03.2019
- * @version 1.5
- * @author  Aleksandr Milenin admin@azrr.info
+ * @author Alex Milenin
+ * @email  admin@azrr.info
+ * @copyright Copyright (c)Alex Milenin (https://azrr.info/)
  */
 
 namespace Azurre\Component\Http;
@@ -136,7 +136,7 @@ class Uploader
      * Transliterate cyrillic names. Strongly recommended!
      *
      * @param bool $replace
-     * @return $this
+     * @return static
      */
     public function setReplaceCyrillic($replace = true)
     {
@@ -154,7 +154,7 @@ class Uploader
 
     /**
      * @param int $nameFormat
-     * @return $this
+     * @return static
      */
     public function setNameFormat($nameFormat)
     {
@@ -173,7 +173,7 @@ class Uploader
     /**
      * @param int $errorCode
      * @param bool $throwException
-     * @return $this
+     * @return static
      * @throws UploadException
      */
     public function setError($errorCode, $throwException = true)
@@ -195,7 +195,7 @@ class Uploader
 
     /**
      * @param bool $overwrite
-     * @return $this
+     * @return static
      */
     public function setOverwrite($overwrite = true)
     {
@@ -231,17 +231,17 @@ class Uploader
     }
 
     /**
-     * @return \Azurre\Component\Http\Uploader\FileInterface|array
+     * @return \Azurre\Component\Http\Uploader\FileInterface|null
      */
     public function getFirstFile()
     {
-        return reset($this->files);
+        return \count($this->files) ? reset($this->files) : null;
     }
 
     /**
      * @param int $validatorType
      * @param mixed $data
-     * @return $this
+     * @return static
      * @throws UploadException
      */
     public function addValidator($validatorType, $data)
@@ -262,15 +262,15 @@ class Uploader
         foreach ($this->validators as $validator) {
             switch ($validator['type']) {
                 case self::VALIDATOR_MIME:
-                    $this->validateMimeType($file['mime'], $validator['data']);
+                    $this->validateMimeType($file->getMimeType(), $validator['data']);
                 break;
 
                 case self::VALIDATOR_SIZE:
-                    $this->validateSize($file['size'], $validator['data']);
+                    $this->validateSize($file->getSize(), $validator['data']);
                 break;
 
                 case self::VALIDATOR_EXTENSION:
-                    $this->validateExtension($file['extension'], $validator['data']);
+                    $this->validateExtension($file->getExtension(), $validator['data']);
                 break;
             }
         }
@@ -357,6 +357,7 @@ class Uploader
 
     /**
      * @param string $key Key of $_FILE array
+     * @return static
      * @throws UploadException
      */
     public function upload($key)
@@ -393,11 +394,11 @@ class Uploader
                 'error_code' => $_FILES[$key]['error']
             ]);
         }
-        $this->process();
+        return $this->process();
     }
 
     /**
-     * @return void
+     * @return static
      * @throws UploadException
      */
     protected function process()
@@ -440,11 +441,13 @@ class Uploader
             $file->setFullPath(realpath($destinationFile));
             $this->applyCallback($this->afterUploadCallback, $file);
         }
+
+        return $this;
     }
 
     /**
      * @param string $path
-     * @return $this
+     * @return static
      * @throws UploadException
      */
     protected function createDestination($path)
@@ -459,13 +462,14 @@ class Uploader
 
     /**
      * @param string $url File url
-     * @return void
+     * @return static
      * @throws \Exception
      */
     public function uploadByUrl($url)
     {
-        $this->isUrlUpload = true;
         $this->reset();
+        $this->isUrlUpload = true;
+        $url = current(explode('?', $url, 2));
         $urlInfo = pathinfo($url);
         $basename = empty($urlInfo['basename']) ? 'noname' : $urlInfo['basename'];
         $basename = preg_replace('/[^\w\.\-]/', '', $basename);
@@ -481,25 +485,28 @@ class Uploader
             'size' => 0,
             'error_code' => $tempFile ? static::ERROR_NO_ERROR : static::ERROR_NO_TMP_DIR
         ]);
+        $this->files[] = $file;
         //@todo maxFileSize
-        if (!$content = file_get_contents($url)) {
+        if (!$content = @file_get_contents($url)) {
             $file->setErrorCode(static::ERROR_CANNOT_GET_FILE);
-            return;
+            throw new UploadException(error_get_last(), static::ERROR_CANNOT_GET_FILE);
         }
         $file->setSize(\strlen($content));
-        if (!file_put_contents($tempFile, $content)) {
+        if (!@file_put_contents($tempFile, $content)) {
             $file->setErrorCode(static::ERROR_CANNOT_WRITE);
-            return;
+            throw new UploadException(error_get_last(), static::ERROR_CANNOT_WRITE);
         }
         if (\function_exists('\mime_content_type')) {
             $file->setMimeType(\mime_content_type($tempFile));
         }
         $this->process();
+        $this->isUrlUpload = false;
+        return $this;
     }
 
     /**
      * @param callable $callback
-     * @return $this
+     * @return static
      */
     public function beforeValidate($callback)
     {
@@ -509,7 +516,7 @@ class Uploader
 
     /**
      * @param callable $callback
-     * @return $this
+     * @return static
      */
     public function afterValidate($callback)
     {
@@ -519,7 +526,7 @@ class Uploader
 
     /**
      * @param callable $callback
-     * @return $this
+     * @return static
      */
     public function beforeUpload($callback)
     {
@@ -530,7 +537,7 @@ class Uploader
 
     /**
      * @param callable $callback
-     * @return $this
+     * @return static
      */
     public function afterUpload($callback)
     {
@@ -550,7 +557,7 @@ class Uploader
      * Set new filename formatter function
      *
      * @param callable $nameFormatter
-     * @return $this
+     * @return static
      */
     public function setNameFormatter($nameFormatter)
     {
@@ -568,7 +575,7 @@ class Uploader
 
     /**
      * @param int|null $treeSize
-     * @return $this
+     * @return static
      */
     public function setSplitTreeSize($treeSize)
     {
@@ -603,8 +610,12 @@ class Uploader
         return $glue ? implode(DIRECTORY_SEPARATOR, $tree) : $tree;
     }
 
+    /**
+     * @return static
+     */
     public function reset()
     {
+        $this->isUrlUpload = false;
         $this->errorCode = static::ERROR_NO_ERROR;
         $this->files = [];
         return $this;
@@ -634,6 +645,14 @@ class Uploader
         }
 
         return $number;
+    }
+
+    /**
+     * @return static
+     */
+    public static function create()
+    {
+        return new static();
     }
 
     /**

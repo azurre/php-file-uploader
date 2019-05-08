@@ -2,9 +2,8 @@
 /**
  * @author Alex Milenin
  * @email  admin@azrr.info
- * @date   09.04.2019
+ * @copyright Copyright (c)Alex Milenin (https://azrr.info/)
  */
-
 namespace Azurre\Component\Http\Uploader;
 
 /**

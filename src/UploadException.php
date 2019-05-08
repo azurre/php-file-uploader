@@ -2,7 +2,7 @@
 /**
  * @author Alex Milenin
  * @email  admin@azrr.info
- * @date   08.04.2019
+ * @copyright Copyright (c)Alex Milenin (https://azrr.info/)
  */
 
 namespace Azurre\Component\Http;

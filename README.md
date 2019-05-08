@@ -1,7 +1,15 @@
 # Simple file uploader [![Latest Version](https://img.shields.io/github/release/azurre/php-simple-file-uploader.svg?style=flat-square)](https://github.com/azurre/php-simple-file-uploader/releases)
-Very small(single class) and comfortable file uploader with validation
+Small, comfortable and powerful file uploader
 
-# Installation
+## Features
+* No dependencies
+* Easy to use
+* Easy to validate
+* Easy to extend/customize
+* Upload by URL
+* Unified upload result
+
+## Installation
 
 Install composer in your project:
 ```
@@ -13,7 +21,9 @@ Require the package with composer:
 composer require azurre/php-simple-file-uploader
 ```
 
-# Usage
+## Usage
+
+### Simple example
 
 ```php
 $loader = require_once __DIR__ . '/vendor/autoload.php';
@@ -21,37 +31,58 @@ $loader = require_once __DIR__ . '/vendor/autoload.php';
 use Azurre\Component\Http\Uploader;
 
 if (isset($_FILES['file'])) {
-    $Uploader = new Uploader();
-
-    $Uploader
-        ->setStoragePath('./')
-        ->setOverwrite(false) // Overwrite existing files?
-        ->setNameFormat(Uploader::NAME_FORMAT_ORIGINAL) 
-        ->setReplaceCyrillic(false) // Transliterate cyrillic names
-
-        ->addValidator(Uploader::VALIDATOR_MIME, array('image/png', 'image/jpeg'))
-        ->addValidator(Uploader::VALIDATOR_EXTENSION, array('png', 'jpg'))
-        ->addValidator(Uploader::VALIDATOR_SIZE, '1M' );
-
-    $Uploader->afterUpload(function($file){
-        //do something
-    });
-
-    $customData = 'key';
-    // Custom name formatter. If you use custom formatter setNameFormat() and setReplaceCyrillic() will be ignored.
-    $Uploader->setNameFormatter(function($file, $Upl) use($customData){
-        /** @var Uploader $Upl */
-        $newName = str_replace(' ', '-', $file['name']);
-        $newName = $Upl->transliterate($newName);
-        $newName .= "_{$customData}_" .  rand(1000,99999) .'.'. $file['extension'];
-        return  $newName;
-    });
-
-
     try {
-        $Uploader->upload('file');
-        $files = $Uploader->getFiles();
-        echo '<pre>'. print_r($files, true) . '</pre>';
+        $uploader = Uploader::create()->upload('file');
+    } catch (\Exception $e) {
+        exit("Error: {$e->getMessage()}");
+    }
+    echo $uploader->getFirstFile()->getFullPath();
+}
+
+?>
+<form method="POST" enctype="multipart/form-data">
+    <input type="file" name="file" />
+    <input type="submit" value="Upload File" />
+</form>
+```
+
+Output
+```
+/var/www/Test_5cd31dbb246530.38121881.xlsx
+```
+
+### Example
+
+```php
+if (isset($_FILES['file'])) {
+    try {
+        $uploader = Uploader::create()
+            ->setDestination('./')
+            ->setOverwrite(false)// Overwrite existing files?
+            ->setNameFormat(Uploader::NAME_FORMAT_ORIGINAL)
+            ->setReplaceCyrillic(false)// Transliterate cyrillic names
+            ->addValidator(Uploader::VALIDATOR_MIME, ['image/png', 'image/jpeg'])
+            ->addValidator(Uploader::VALIDATOR_EXTENSION, ['png', 'jpg'])
+            ->addValidator(Uploader::VALIDATOR_SIZE, '1M');
+
+        // After upload callback
+        $uploader->afterUpload(function ($file) {
+            //do something
+        });
+
+        $customData = 'KEY';
+        // Custom name formatter. If you will use custom formatter setNameFormat() setReplaceCyrillic() will be ignored.
+        $uploader->setNameFormatter(function ($file, $upl) use ($customData) {
+            /** @var Uploader\File $file */
+            /** @var Uploader $upl */
+            $newName = str_replace(' ', '-', $file->getName());
+            $newName = Uploader::transliterate($newName);
+            $newName .= uniqid("_{$customData}_", true) . ".{$file->getExtension()}";
+            return $newName;
+        });
+
+        $uploader->upload('file');
+        echo '<pre>' . print_r($uploader->getFiles(), true) . '</pre>';
     } catch (\Exception $e) {
         echo 'Error:' . $e->getMessage();
     }
@@ -64,53 +95,72 @@ if (isset($_FILES['file'])) {
 </form>
 ```
 
-
 Output
 ```
 Array
 (
-    [0] => Array
+    [0] => Azurre\Component\Http\Uploader\File Object
         (
-            [name] => login
-            [fullName] => login.jpg
-            [newName] => login_57f6bd1710245.jpg
-            [fullPath] => /home/sites/test.local/uploader/login_57f6bd1710245.jpg
-            [extension] => jpg
-            [mime] => image/jpeg
-            [tmpName] => /tmp/phpO5emvp
-            [size] => 1636
-            [error] => 0
+            [data:protected] => Array
+                (
+                    [name] => Новая Картинка
+                    [full_name] => Новая Картинка.jpg
+                    [new_name] => Novaya-Kartinka_KEY_5cd32798d81c15.93269375.jpg
+                    [full_path] => /var/www/pricer.local/public/Novaya-Kartinka_KEY_5cd32798d81c15.93269375.jpg
+                    [extension] => jpg
+                    [mime_type] => image/jpeg
+                    [tmp_name] => /tmp/phpd2DBTm
+                    [size] => 280012
+                    [error_code] => 0
+                )
         )
-)
-
------------
-
-Array
-(
-    [0] => Array
+    [1] => Azurre\Component\Http\Uploader\File Object
         (
-            [name] => login1
-            [fullName] => login1.jpg
-            [newName] => login1_57f6bd1710245.jpg
-            [fullPath] => /home/sites/test.local/libs/uploader/login1_57f6bd1710245.jpg
-            [extension] => jpg
-            [mime] => image/jpeg
-            [tmpName] => /tmp/php13emrc
-            [size] => 1636
-            [error] => 0
-        )
-
-    [1] => Array
-        (
-            [name] => 0340
-            [fullName] => 0340.jpg
-            [newName] => 0340_57f2b14d74b43.jpg
-            [fullPath] => /home/sites/test.local/libs/uploader/0340_57f2b14d74b43.jpg
-            [extension] => jpg
-            [mime] => image/jpeg
-            [tmpName] => /tmp/phpSBTzyC
-            [size] => 3109
-            [error] => 0
+            [data:protected] => Array
+                (
+                    [name] => web-server-certificate
+                    [full_name] => web-server-certificate.png
+                    [new_name] => web-server-certificate_KEY_5cd32798d82f45.89296123.png
+                    [full_path] => /var/www/pricer.local/public/web-server-certificate_KEY_5cd32798d82f45.89296123.png
+                    [extension] => png
+                    [mime_type] => image/png
+                    [tmp_name] => /tmp/php93mYNo
+                    [size] => 70652
+                    [error_code] => 0
+                )
         )
 )
 ```
+
+### Example upload by URL
+```php
+$url = 'https://img.shields.io/github/release/azurre/php-simple-file-uploader.svg?style=flat-square';
+try {
+    $uploader = Uploader::create()->uploadByUrl($url);
+    echo '<pre>' . print_r($uploader->getFirstFile(), true) . '</pre>';
+} catch (\Exception $e) {
+    echo 'Error:' . $e->getMessage();
+}
+```
+Output
+```
+Azurre\Component\Http\Uploader\File Object
+(
+    [data:protected] => Array
+        (
+            [name] => php-simple-file-uploader
+            [full_name] => php-simple-file-uploader.svg
+            [new_name] => php-simple-file-uploader_5cd32cc8d0b301.55846637.svg
+            [full_path] => /var/www/pricer.local/public/php-simple-file-uploader_5cd32cc8d0b301.55846637.svg
+            [extension] => svg
+            [mime_type] => image/svg
+            [tmp_name] => /tmp/upload9wl2BK
+            [size] => 952
+            [error_code] => 0
+        )
+
+)
+```
+
+## License
+[MIT](https://choosealicense.com/licenses/mit/)
